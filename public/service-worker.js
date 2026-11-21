@@ -1,4 +1,4 @@
-const CACHE_NAME = "DUMBDO_PWA_CACHE_V1";
+const CACHE_NAME = "DUMBDO_PWA_CACHE_V2";
 const ASSETS_TO_CACHE = [];
 
 const preload = async () => {
@@ -20,7 +20,12 @@ globalThis.addEventListener("install", (event) => {
 });
 
 globalThis.addEventListener("activate", (event) => {
-  event.waitUntil(clients.claim());
+  event.waitUntil((async () => {
+    // Purge caches from previous service worker versions
+    const names = await caches.keys();
+    await Promise.all(names.filter(name => name !== CACHE_NAME).map(name => caches.delete(name)));
+    await clients.claim();
+  })());
 });
 
 globalThis.addEventListener("fetch", (event) => {
