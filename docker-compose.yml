@@ -2,7 +2,7 @@ services:
   dumbdo:
     # To run a locally built image instead of the published one:
     # build: .
-    image: dumbwareio/dumbdo:latest
+    image: ghcr.io/n-molham/dumbdo:latest
     container_name: dumbdo
     restart: unless-stopped
     ports:

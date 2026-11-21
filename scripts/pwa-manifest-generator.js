@@ -21,40 +21,49 @@ function getFiles(dir, basePath = "/") {
   return fileList;
 }
 
-function generateAssetManifest() {
-  const assets = getFiles(PUBLIC_DIR);
-  fs.writeFileSync(path.join(ASSETS_DIR, "asset-manifest.json"), JSON.stringify(assets, null, 2));
-  console.log("Asset manifest generated!", assets);
+function buildAssetManifest() {
+  return getFiles(PUBLIC_DIR);
 }
 
-function generatePWAManifest(siteTitle) {
-  generateAssetManifest(); // fetched later in service-worker
-
-  const pwaManifest = {
+function buildPWAManifest(siteTitle) {
+  return {
     name: siteTitle,
-      short_name: siteTitle,
-      description: "A stupidly simple todo list",
-      start_url: "/",
-      display: "standalone",
-      background_color: "#ffffff",
-      theme_color: "#000000",
-      icons: [
-        {
-          src: "assets/logo-192.png",
-          type: "image/png",
-          sizes: "192x192"
-        },
-        {
-          src: "assets/logo-512.png",
-          type: "image/png",
-          sizes: "512x512"
-        }
-      ],
-      orientation: "any"
+    short_name: siteTitle,
+    description: "A stupidly simple todo list",
+    start_url: "/",
+    display: "standalone",
+    background_color: "#ffffff",
+    theme_color: "#000000",
+    icons: [
+      {
+        src: "assets/logo-192.png",
+        type: "image/png",
+        sizes: "192x192"
+      },
+      {
+        src: "assets/logo-512.png",
+        type: "image/png",
+        sizes: "512x512"
+      }
+    ],
+    orientation: "any"
   };
-
-  fs.writeFileSync(path.join(ASSETS_DIR, "manifest.json"), JSON.stringify(pwaManifest, null, 2));
-  console.log("PWA manifest generated!", pwaManifest);
 }
 
-module.exports = { generatePWAManifest };
+// Best-effort file writes for backwards compatibility. The server serves
+// both manifests from memory, so a read-only filesystem must not crash boot.
+function writeManifests(siteTitle) {
+  const assetManifest = buildAssetManifest();
+  const pwaManifest = buildPWAManifest(siteTitle);
+
+  try {
+    fs.writeFileSync(path.join(ASSETS_DIR, "asset-manifest.json"), JSON.stringify(assetManifest, null, 2));
+    fs.writeFileSync(path.join(ASSETS_DIR, "manifest.json"), JSON.stringify(pwaManifest, null, 2));
+  } catch (error) {
+    console.warn("Could not write manifest files (read-only assets dir?):", error.code);
+  }
+
+  return { assetManifest, pwaManifest };
+}
+
+module.exports = { buildAssetManifest, buildPWAManifest, writeManifests, generatePWAManifest: writeManifests };

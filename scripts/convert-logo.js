@@ -8,9 +8,10 @@ const sizes = [16, 32, 48, 64, 128, 192, 256, 512];
 async function convertLogoToPng() {
     const inputFile = path.join(ASSETS_DIR, 'favicon.svg');
     const allSizes = [...sizes, 'favicon'];
+    const fileNameFor = (size) => (size === 'favicon' ? 'favicon.png' : `logo-${size}.png`);
 
     // Skip when logos already exist (e.g. pregenerated at Docker build time)
-    if (allSizes.every(size => fs.existsSync(path.join(ASSETS_DIR, `logo-${size}.png`)))) {
+    if (allSizes.every(size => fs.existsSync(path.join(ASSETS_DIR, fileNameFor(size))))) {
         console.log('Logo PNGs already present, skipping conversion.');
         return;
     }

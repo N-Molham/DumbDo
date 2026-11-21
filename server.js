@@ -9,7 +9,7 @@ const app = express();
 app.disable('x-powered-by');
 const { getCorsOptions, originValidationMiddleware } = require('./scripts/cors');
 const { convertLogoToPng } = require('./scripts/convert-logo');
-const { generatePWAManifest } = require('./scripts/pwa-manifest-generator');
+const { writeManifests } = require('./scripts/pwa-manifest-generator');
 
 // Environment variables
 const PORT = process.env.PORT || 3000;
@@ -21,9 +21,10 @@ const MAX_PIN_LENGTH = 10;
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const ASSETS_DIR = path.join(PUBLIC_DIR, 'assets');
 
-// Generate PWA assets
+// Generate PWA assets and keep both manifests in memory (served from routes,
+// so a read-only assets directory never breaks boot)
+const { assetManifest, pwaManifest } = writeManifests(SITE_TITLE);
 convertLogoToPng();
-generatePWAManifest(SITE_TITLE);
 
 // Trust proxy - required for secure cookies behind a reverse proxy
 app.set('trust proxy', 1);
@@ -196,14 +197,13 @@ app.get('/favicon.svg', (req, res) => {
     res.sendFile(path.join(ASSETS_DIR, 'favicon.svg'));
 });
 
-// Serve the pwa/asset manifest
+// Serve the pwa/asset manifest (kept in memory at boot)
 app.get('/asset-manifest.json', (req, res) => {
-    // generated in pwa-manifest-generator and fetched from service-worker.js
-    res.sendFile(path.join(ASSETS_DIR, 'asset-manifest.json'));
-  });
+    res.json(assetManifest);
+});
 app.get('/manifest.json', (req, res) => {
-    res.sendFile(path.join(ASSETS_DIR, 'manifest.json'));
-  });
+    res.json(pwaManifest);
+});
 
 // PIN validation helper
 function isValidPin(providedPin) {
