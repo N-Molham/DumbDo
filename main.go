@@ -103,7 +103,7 @@ func urlOrigin(origin string) (string, error) {
 	if schemeSep <= 0 {
 		return "", fmt.Errorf("invalid URL")
 	}
-	scheme := s[:schemeSep]
+	scheme := strings.ToLower(s[:schemeSep])
 	rest := s[schemeSep+3:]
 	host := rest
 	if i := strings.IndexAny(rest, "/?#"); i >= 0 {
@@ -112,7 +112,8 @@ func urlOrigin(origin string) (string, error) {
 	if host == "" {
 		return "", fmt.Errorf("invalid URL")
 	}
-	return scheme + "://" + host, nil
+	// new URL().origin lowercases the host
+	return scheme + "://" + strings.ToLower(host), nil
 }
 
 // corsMiddleware mirrors the express cors() package for the options used:
@@ -139,13 +140,16 @@ func corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// originValidationMiddleware validates the Referer header on /api routes
-// (parity with the original implementation, which reads the referer).
+// originValidationMiddleware validates the request origin on /api routes.
+// The original implementation read only the Referer header, which broke
+// PWA standalone mode and referrer-stripping browsers (403 on /api/config).
+// Now: Sec-Fetch-Site metadata is trusted when present, else Origin, else
+// Referer, compared against ALLOWED_ORIGINS.
 func originValidationMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		referer := r.Header.Get("Referer")
-		if !validateOrigin(referer) {
-			log.Printf("Blocked request from origin: %s", referer)
+		if !validateRequestOrigin(r) {
+			log.Printf("Blocked request: origin=%q referer=%q sec-fetch-site=%q",
+				r.Header.Get("Origin"), r.Header.Get("Referer"), r.Header.Get("Sec-Fetch-Site"))
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusForbidden)
 			w.Write([]byte(`{"error":"Forbidden"}`))
@@ -155,21 +159,35 @@ func originValidationMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func validateOrigin(origin string) bool {
+func validateRequestOrigin(r *http.Request) bool {
 	if allOrigins {
 		return true
 	}
-	if origin == "" {
-		log.Println("No origin to validate.")
-		return false
+	switch strings.ToLower(r.Header.Get("Sec-Fetch-Site")) {
+	case "same-origin", "none":
+		// Browser-asserted: initiated from the same origin, or by direct
+		// navigation (address bar). Trusted over spoofable headers.
+		return true
 	}
-	normalized := normalizeOrigin(origin)
-	for _, allowed := range allowedOrigins {
-		if normalized == allowed {
+	if origin := r.Header.Get("Origin"); origin != "" {
+		if originAllowed(normalizeOrigin(origin)) {
 			return true
 		}
 	}
-	log.Printf("Blocked request from origin: %s", origin)
+	if referer := r.Header.Get("Referer"); referer != "" {
+		if originAllowed(normalizeOrigin(referer)) {
+			return true
+		}
+	}
+	return false
+}
+
+func originAllowed(normalized string) bool {
+	for _, allowed := range allowedOrigins {
+		if strings.EqualFold(normalized, allowed) {
+			return true
+		}
+	}
 	return false
 }
 
