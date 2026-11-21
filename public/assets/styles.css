@@ -147,6 +147,7 @@ input {
     border-radius: 8px;
     background: var(--container);
     color: var(--text);
+    font-size: 1rem; /* UA default is 13.33px in Chrome; 16px stops iOS zoom-on-focus */
     transition: border-color var(--transition);
 }
 
@@ -369,6 +370,12 @@ input:focus {
     
     .button-group button[type="submit"] {
         flex: 1;
+    }
+
+    .todo-form input {
+        flex: none;
+        width: 100%;
+        max-width: 400px;
     }
 }
 
@@ -815,6 +822,7 @@ input:focus {
     }
 
     .todo-item .delete-btn,
+    .clear-btn,
     .button-group button[type="submit"] {
         min-width: 44px;
         min-height: 44px;
@@ -825,9 +833,10 @@ input:focus {
         font-size: 1.1rem;
     }
 
-    .icon-btn {
-        width: 40px;
-        height: 40px;
+    .icon-btn,
+    #themeToggle {
+        width: 44px;
+        height: 44px;
     }
 }
 
