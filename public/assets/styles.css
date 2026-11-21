@@ -28,6 +28,11 @@
     box-sizing: border-box;
 }
 
+/* Kill 300ms tap delay and double-tap zoom on interactive elements */
+button, input, select, label, a, .todo-item {
+    touch-action: manipulation;
+}
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     background-color: var(--background);
@@ -294,7 +299,7 @@ input:focus {
 
 .toast-container {
     position: fixed;
-    bottom: 1rem;
+    bottom: calc(1rem + env(safe-area-inset-bottom));
     left: 50%;
     transform: translateX(-50%);
     padding: 0.5rem 1rem;
@@ -302,6 +307,7 @@ input:focus {
     flex-direction: column;
     gap: 10px;
     z-index: 2000;
+    max-width: calc(100vw - 2rem);
 }
 
 .toast {
@@ -426,11 +432,25 @@ input:focus {
     flex: none;
     max-width: 30px;
     padding: 0;
-}
-
-.pin-input-container input.pin-input:focus {
+}.pin-input-container input.pin-input:focus {
     outline: none;
     border-color: var(--primary);
+}
+
+/* Long PINs (8-10 digits) must not overflow the modal on small screens */
+@media (max-width: 480px) {
+    .pin-input-container {
+        gap: 4px;
+        margin-bottom: 1rem;
+    }
+
+    .pin-input-container input.pin-input {
+        flex: 1 1 0;
+        width: auto;
+        min-width: 0;
+        max-width: 40px;
+        height: 44px;
+    }
 }
 
 .pin-input-container input.pin-input.has-value {
@@ -530,7 +550,7 @@ input:focus {
     border-radius: 8px;
     padding: 0.5rem;
     padding-right: 24px;
-    font-size: 0.9rem;
+    font-size: 1rem; /* >=16px so iOS does not zoom the input on focus */
     cursor: pointer;
     transition: all var(--transition);
     width: 100%;
@@ -604,6 +624,13 @@ input:focus {
     align-items: center;
 }
 
+/* Touch devices have no hover: keep the delete button reachable */
+@media (hover: none) {
+    .list-item .delete-btn {
+        opacity: 1;
+    }
+}
+
 .list-item:hover .delete-btn {
     opacity: 1;
 }
@@ -645,6 +672,7 @@ input:focus {
 /* Login Page Styles */
 .login-page {
     min-height: 100vh;
+    min-height: 100dvh;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -770,10 +798,44 @@ input:focus {
     opacity: 1;
 }
 
-/* Add touch-friendly tap target on mobile */
+/* Touch-friendly tap targets */
 @media (max-width: 768px) {
     .checkbox-wrapper {
         padding: 0.75rem;
         margin: -0.75rem;
+    }
+
+    .todo-item input[type="checkbox"] {
+        width: 22px;
+        height: 22px;
+    }
+
+    .todo-item {
+        padding: 0.75rem;
+    }
+
+    .todo-item .delete-btn,
+    .button-group button[type="submit"] {
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    .todo-item .delete-btn {
+        padding: 0.5rem 0.75rem;
+        font-size: 1.1rem;
+    }
+
+    .icon-btn {
+        width: 40px;
+        height: 40px;
+    }
+}
+
+/* Prevent long-press context menu / callout interfering with drag-reorder */
+@media (hover: none) {
+    .todo-item:not(.completed) {
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
     }
 } 

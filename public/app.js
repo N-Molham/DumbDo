@@ -304,6 +304,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
+    // Rebuild todos[currentList] order from the DOM (active items first)
+    function syncOrderFromDOM() {
+        const ordered = [...document.querySelectorAll('.todo-item:not(.completed)')]
+            .map(item => (todos[currentList] || []).find(t => t.text === item.getAttribute('data-todo-id')))
+            .filter(Boolean);
+        todos[currentList] = [...ordered, ...(todos[currentList] || []).filter(t => t.completed)];
+    }
+
     function createTodoElement(todo) {
         const li = document.createElement('li');
         li.className = `todo-item ${todo.completed ? 'completed' : ''}`;
@@ -432,15 +442,81 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         
                         // Update the todos array to match the new order
-                        const activeTodos = todos[currentList].filter(t => !t.completed);
-                        const completedTodos = todos[currentList].filter(t => t.completed);
-                        const newOrder = [...document.querySelectorAll('.todo-item:not(.completed)')].map(item => {
-                            return activeTodos.find(t => t.text === item.getAttribute('data-todo-id'));
-                        });
-                        todos[currentList] = [...newOrder, ...completedTodos];
+                        syncOrderFromDOM();
                         saveTodos();
                     }
                 }
+            });
+        }
+
+        // Touch fallback for drag-reorder: HTML5 drag events never fire on touch.
+        // Long-press (300ms) starts the drag; a normal scroll cancels it.
+        if (isTouchDevice && !todo.completed) {
+            let pressTimer = null;
+            let touchDragActive = false;
+            let orderChanged = false;
+
+            const startTouchDrag = () => {
+                touchDragActive = true;
+                li.classList.add('dragging');
+                if (navigator.vibrate) navigator.vibrate(10);
+            };
+
+            const endTouchDrag = () => {
+                if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+                if (touchDragActive) {
+                    li.classList.remove('dragging');
+                    touchDragActive = false;
+                    if (orderChanged) {
+                        syncOrderFromDOM();
+                        saveTodos();
+                        orderChanged = false;
+                    }
+                    // Swallow the click that follows the touch so it does not
+                    // open the text editor or toggle the checkbox
+                    li.addEventListener('click', (e) => e.stopPropagation(), { capture: true, once: true });
+                }
+            };
+
+            li.addEventListener('touchstart', (e) => {
+                if (e.target.closest('input, button, a')) return;
+                pressTimer = setTimeout(startTouchDrag, 300);
+            }, { passive: true });
+
+            li.addEventListener('touchmove', (e) => {
+                const touch = e.touches[0];
+                if (!touchDragActive) {
+                    // Moved before the long-press fired: this is a scroll
+                    if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+                    return;
+                }
+                e.preventDefault(); // keep the page from scrolling while dragging
+
+                const targetItem = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('.todo-item:not(.completed)');
+                if (targetItem && targetItem !== li) {
+                    const rect = targetItem.getBoundingClientRect();
+                    const before = touch.clientY < rect.top + rect.height / 2;
+                    if (before && targetItem.previousSibling !== li) {
+                        targetItem.parentNode.insertBefore(li, targetItem);
+                        orderChanged = true;
+                    } else if (!before && targetItem.nextSibling !== li) {
+                        targetItem.parentNode.insertBefore(li, targetItem.nextSibling);
+                        orderChanged = true;
+                    }
+                } else {
+                    // Drop into an empty active container
+                    const container = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('.active-todos');
+                    if (container && container !== li.parentNode && container.querySelector('.todo-item') === null) {
+                        container.appendChild(li);
+                        orderChanged = true;
+                    }
+                }
+            }, { passive: false });
+
+            li.addEventListener('touchend', endTouchDrag);
+            li.addEventListener('touchcancel', endTouchDrag);
+            li.addEventListener('contextmenu', (e) => {
+                if (touchDragActive) e.preventDefault();
             });
         }
 
