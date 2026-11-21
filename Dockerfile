@@ -1,40 +1,37 @@
-# Stage 1: Build the application
+# Stage 1: pregenerate logo PNGs once at build time (removes sharp from the runtime image)
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+COPY package.json package-lock.json ./
+RUN npm ci
 
-# Install dependencies
-RUN npm install && \
-    npm cache clean --force
+COPY scripts ./scripts
+COPY public ./public
+RUN node scripts/convert-logo.js
 
-# Copy application files
-COPY . .
-
-# Stage 2: Create the runtime image
-FROM node:20-alpine
+# Stage 2: Bun runtime (no sharp, no native deps, small image)
+FROM oven/bun:1-alpine
 
 WORKDIR /app
 
-# Copy only the necessary files from the builder stage
-COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/server.js ./
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/scripts ./scripts
+COPY --from=builder --chown=bun:bun /app/public ./public
+COPY --chown=bun:bun server.js ./
+COPY --chown=bun:bun scripts ./scripts
+COPY --chown=bun:bun package.json ./
 
-# Create data directory (if it doesn't exist)
-RUN mkdir -p data
+# Production deps only (express, cookie-parser, cors)
+RUN bun install --production
 
-# Expose port (internal port)
+# Data directory for the volume mount
+RUN mkdir -p /app/data && chown bun:bun /app/data
+
+USER bun
+
 EXPOSE 3000
 
-# Healthcheck
-RUN apk add --no-cache wget
-HEALTHCHECK --interval=20s --timeout=5s --start-period=20s --retries=3 \
-    CMD wget --spider -q http://127.0.0.1:3000 || exit 1
+# Healthcheck against the public /health endpoint (no wget package needed)
+HEALTHCHECK --interval=20s --timeout=5s --start-period=10s --retries=3 \
+    CMD bun -e "fetch('http://127.0.0.1:3000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 
-# Start the application
-CMD ["npm", "start"]
+CMD ["bun", "server.js"]

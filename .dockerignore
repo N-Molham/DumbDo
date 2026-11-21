@@ -29,7 +29,7 @@ data/
 
 # Scripts and generated assets
 # scripts/ # Keep scripts so that we can generate manifest for PWA
-assets/
+# Generated logo PNGs are built inside the image; no need to ship them in the context
 *.png
 !src/assets/*.png  # Keep source PNGs if any
-Boilerplate.md 
+Boilerplate.md

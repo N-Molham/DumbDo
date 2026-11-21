@@ -1,4 +1,4 @@
-require('dotenv').config();
+// Bun auto-loads .env files; dotenv is no longer needed
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs').promises;
@@ -6,6 +6,7 @@ const path = require('path');
 const crypto = require('crypto');
 const cookieParser = require('cookie-parser');
 const app = express();
+app.disable('x-powered-by');
 const { getCorsOptions, originValidationMiddleware } = require('./scripts/cors');
 const { convertLogoToPng } = require('./scripts/convert-logo');
 const { generatePWAManifest } = require('./scripts/pwa-manifest-generator');
@@ -80,6 +81,15 @@ setInterval(() => {
         }
     }
 }, 60000); // Clean up every minute
+const loginAttemptsCleanup = setInterval(() => {
+    const now = Date.now();
+    for (const [ip, attempts] of loginAttempts.entries()) {
+        if (now - attempts.lastAttempt >= LOCKOUT_TIME) {
+            loginAttempts.delete(ip);
+        }
+    }
+}, 60000); // Clean up every minute
+loginAttemptsCleanup.unref();
 
 // Constant-time string comparison
 function secureCompare(a, b) {
@@ -219,6 +229,11 @@ app.use((req, res, next) => {
     next();
 });
 
+// Public health endpoint for container healthchecks (no PIN required)
+app.get('/health', (req, res) => {
+    res.json({ ok: true });
+});
+
 // Protected routes below
 
 app.get('/', (req, res) => {
@@ -236,43 +251,61 @@ app.get('/login', (req, res) => {
 });
 
 // Protect all other static files
-app.use(express.static(PUBLIC_DIR));
-app.use(express.static('.'));
+// NOTE: never serve the project root ('.') — it leaked server.js, package.json and node_modules
+app.use(express.static(PUBLIC_DIR, { maxAge: '1h' }));
 
 // Data directory and file path
 const DATA_DIR = path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'todos.json');
+
+// In-memory cache: reads served from RAM, disk only touched on writes
+let todosCache = null;
 
 // Ensure the data directory and file exist
 async function initDataFile() {
     try {
         await fs.access(DATA_DIR);
     } catch {
-        await fs.mkdir(DATA_DIR);
+        await fs.mkdir(DATA_DIR, { recursive: true });
     }
-    
+
     try {
-        await fs.access(DATA_FILE);
+        const data = await fs.readFile(DATA_FILE, 'utf8');
+        todosCache = JSON.parse(data);
     } catch {
-        await fs.writeFile(DATA_FILE, JSON.stringify({}));
+        todosCache = {};
+        await atomicWriteTodos(todosCache);
     }
-    
+
     console.log('Todo list stored at:', DATA_FILE);
+}
+
+// Atomic write: temp file + rename, so a crash can never leave a half-written todos.json
+async function atomicWriteTodos(data) {
+    const tmp = DATA_FILE + '.tmp';
+    await fs.writeFile(tmp, JSON.stringify(data, null, 2));
+    await fs.rename(tmp, DATA_FILE);
 }
 
 // Protected API routes
 app.get('/api/todos', async (req, res) => {
-    try {
-        const data = await fs.readFile(DATA_FILE, 'utf8');
-        res.json(JSON.parse(data));
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to read todos' });
+    if (todosCache === null) {
+        try {
+            todosCache = JSON.parse(await fs.readFile(DATA_FILE, 'utf8'));
+        } catch (error) {
+            return res.status(500).json({ error: 'Failed to read todos' });
+        }
     }
+    res.json(todosCache);
 });
 
 app.post('/api/todos', async (req, res) => {
+    if (typeof req.body !== 'object' || req.body === null || Array.isArray(req.body)) {
+        return res.status(400).json({ error: 'Invalid todos payload' });
+    }
     try {
-        await fs.writeFile(DATA_FILE, JSON.stringify(req.body, null, 2));
+        todosCache = req.body;
+        await atomicWriteTodos(todosCache);
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ error: 'Failed to save todos' });

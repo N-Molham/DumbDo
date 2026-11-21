@@ -1,5 +1,7 @@
 services:
   dumbdo:
+    # To run a locally built image instead of the published one:
+    # build: .
     image: dumbwareio/dumbdo:latest
     container_name: dumbdo
     restart: unless-stopped
