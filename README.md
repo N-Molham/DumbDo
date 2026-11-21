@@ -29,41 +29,37 @@ A stupidly simple todo list application that just works. No complex database, no
 
 1. Clone the repository
 ```bash
-git clone https://github.com/dumbwareio/dumbdo.git
-cd dumbdo
+git clone https://github.com/N-Molham/DumbDo.git
+cd DumbDo
 ```
 
-2. Install dependencies
+2. Build and run the Go server (no external dependencies)
 ```bash
-npm install
+go build -o dumbdo .
+DUMBDO_PIN=1234 ./dumbdo
 ```
 
-3. Start the server
-```bash
-npm start
-```
-
-4. Open http://localhost:3000 in your browser
+3. Open http://localhost:3000 in your browser
 
 ### Using Docker
 
-1. Pull from Docker Hub (recommended)
+1. Pull from GHCR (recommended)
 ```bash
-docker pull dumbwareio/dumbdo:latest
-docker run -p 3000:3000 -v $(pwd)/data:/app/data dumbwareio/dumbdo:latest
+docker pull ghcr.io/n-molham/dumbdo:latest
+docker run -p 3000:3000 -v $(pwd)/data:/app/data ghcr.io/n-molham/dumbdo:latest
 ```
 
 2. Or build locally
 ```bash
-docker build -t dumbwareio/dumbdo .
-docker run -p 3000:3000 -v $(pwd)/data:/app/data dumbwareio/dumbdo
+docker build -t dumbdo .
+docker run -p 3000:3000 -v $(pwd)/data:/app/data dumbdo
 ```
 
 3. Docker Compose
 ```yaml
 services:
   dumbdo:
-    image: dumbwareio/dumbdo:latest
+    image: ghcr.io/n-molham/dumbdo:latest
     container_name: dumbdo
     restart: unless-stopped
     ports:
@@ -77,7 +73,7 @@ services:
       # - ALLOWED_ORIGINS=http://localhost:3000
       # - NODE_ENV=development # default production (development allows all origins)
     #healthcheck:
-    #  test: wget --spider -q  http://127.0.0.1:3000
+    #  test: wget -qO- http://127.0.0.1:3000/health
     #  start_period: 20s
     #  interval: 20s
     #  timeout: 5s
@@ -101,14 +97,15 @@ The application follows the "Dumb" design system principles:
 
 ```
 dumbdo/
-├── app.js          # Frontend JavaScript
-├── index.html      # Main HTML file
-├── server.js       # Node.js server
-├── styles.css      # CSS styles
-├── data/          # Todo storage directory
+├── main.go           # Go server (single file, stdlib only)
+├── go.mod            # Go module (zero dependencies)
+├── public/           # Frontend (PWA: HTML, CSS, JS, icons)
+│   └── assets/       # Styles, favicon, generated logo PNGs
+├── scripts/          # Logo regeneration helper + Docker entrypoint
+├── data/             # Todo storage directory (volume)
 │   └── todos.json
-├── Dockerfile     # Docker configuration
-└── package.json   # Dependencies and scripts
+├── Dockerfile        # ~15MB final image
+└── package.json      # Only for regenerating logo PNGs (sharp)
 ```
 
 ## Support the Project

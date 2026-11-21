@@ -1,43 +1,36 @@
-# Stage 1: pregenerate logo PNGs once at build time (removes sharp from the runtime image)
-FROM node:20-alpine AS builder
+# Stage 1: build the static Go binary (no network deps, stdlib only)
+FROM golang:1.24-alpine AS build
+
+WORKDIR /src
+
+COPY go.mod ./
+COPY *.go ./
+
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/dumbdo .
+
+# Stage 2: tiny runtime (alpine provides busybox wget for the healthcheck
+# and the shell tools the entrypoint needs when started as root)
+FROM alpine:3.21
+
+RUN apk add --no-cache su-exec
+
+COPY --from=build /out/dumbdo /usr/local/bin/dumbdo
+COPY public /app/public
+COPY scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
+ && mkdir -p /app/data && chown 568:568 /app/data
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
-RUN npm ci
-
-COPY scripts ./scripts
-COPY public ./public
-RUN node scripts/convert-logo.js
-
-# Stage 2: Bun runtime (no sharp, no native deps, small image)
-FROM oven/bun:1-alpine
-
-WORKDIR /app
-
-COPY --from=builder --chown=568:568 /app/public ./public
-COPY --chown=568:568 server.js ./
-COPY --chown=568:568 scripts ./scripts
-COPY --chown=568:568 package.json ./
-
-# Production deps only (express, cookie-parser, cors)
-RUN bun install --production
-
-# Data directory for the volume mount
-RUN mkdir -p /app/data && chown 568:568 /app/data
-
-COPY --chown=568:568 scripts/docker-entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh && apk add --no-cache su-exec
-
+# Unraid/Synology standard uid/gid; the entrypoint chowns the data volume
+# and drops privileges when the container is started as root
 USER 568:568
 
 EXPOSE 3000
 
-# Healthcheck against the public /health endpoint (no wget package needed)
 HEALTHCHECK --interval=20s --timeout=5s --start-period=10s --retries=3 \
-    CMD bun -e "fetch('http://127.0.0.1:3000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+    CMD wget -qO- http://127.0.0.1:3000/health >/dev/null 2>&1 || exit 1
 
-# Start the application (entrypoint chowns the data volume when run as root,
-# then drops privileges to the bun user)
 ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["bun", "server.js"]
+CMD ["dumbdo"]

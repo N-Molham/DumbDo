@@ -1,16 +1,12 @@
-# Node
-node_modules
-npm-debug.log
-yarn-debug.log
-yarn-error.log
-
 # Git
 .git
 .gitignore
+.gitattributes
 
 # Docker
 .dockerignore
 Dockerfile
+docker-compose.yml
 
 # IDE
 .vscode
@@ -22,14 +18,13 @@ Dockerfile
 .DS_Store
 Thumbs.db
 
-# Application specific
+# Runtime data and secrets
 data/
 *.log
 .env
 
-# Scripts and generated assets
-# scripts/ # Keep scripts so that we can generate manifest for PWA
-# Generated logo PNGs are built inside the image; no need to ship them in the context
-*.png
-!src/assets/*.png  # Keep source PNGs if any
-Boilerplate.md
+# Node tooling (only needed for regenerating logo PNGs locally)
+node_modules
+package-lock.json
+README.md
+LICENSE

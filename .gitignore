@@ -146,7 +146,7 @@ data/
 
 # Generated assets
 /assets/*.png
-*.png
+#*.png
 !src/assets/*.png  # Keep source PNGs if any
 
 # IDE

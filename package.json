@@ -1,21 +1,11 @@
 {
   "name": "dumbdo",
-  "version": "1.0.0",
-  "description": "A stupidly simple todo list",
-  "main": "server.js",
-  "scripts": {
-    "start": "bun server.js",
-    "dev": "bun --hot server.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "convert-logo": "node scripts/convert-logo.js"
-  },
-  "keywords": [],
-  "author": "",
+  "version": "2.0.0",
+  "description": "A stupidly simple todo list (Go backend)",
+  "private": true,
   "license": "ISC",
-  "dependencies": {
-    "cookie-parser": "^1.4.7",
-    "cors": "^2.8.5",
-    "express": "^4.21.2"
+  "scripts": {
+    "convert-logo": "node -e \"require('./scripts/convert-logo').convertLogoToPng()\""
   },
   "devDependencies": {
     "sharp": "^0.33.5"
